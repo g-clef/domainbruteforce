@@ -106,7 +106,8 @@ def testForWildCard(baseDomain):
             if hasattr(response, "response"):
                 for answer in response.response.answer:
                     for item in answer.items:
-                        resolutions.append(item.address)
+                        if hasattr(item, "address"):
+                            resolutions.append(item.address)
     if debug:
         print("got %s responses out of %s tries" % (numAnswers, numTests))
     if numAnswers < 0.95 * numTests:

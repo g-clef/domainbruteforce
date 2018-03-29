@@ -19,7 +19,7 @@
 
 import multiprocessing
 import multiprocessing.queues
-from Queue import Empty
+from queue import Empty
 import os
 import time
 
@@ -49,8 +49,9 @@ class CountingQueue(multiprocessing.queues.Queue):
     """Class to do our own counting of queue size, since Macintosh
     doesn't implement the semaphores necessary for python to make
     qsize work on its own."""
-    def __init__(self, *args, **kwargs):
-        super(CountingQueue, self).__init__(*args, **kwargs)
+    def __init__(self):
+        context = multiprocessing.get_context()
+        super(CountingQueue, self).__init__(ctx=context)
         self.countlock = multiprocessing.Lock()
         self.queuesize = multiprocessing.Value("i", 0)
 
@@ -79,13 +80,12 @@ class CountingQueue(multiprocessing.queues.Queue):
         return self.queuesize.value
 
 
-class KillableWorker(multiprocessing.Process):
+class KillableWorker(multiprocessing.context.Process):
     """multiprocessing pattern: start a process, get items off an
     input queue, waiting for a given timeout. If the queue is
     empty at the timeout, check that the parent is still alive,
     and signal that the process should quit if the parent is dead."""
-    def __init__(self, parentPID, inputqueue, timeout=5,
-                    haltMessage=haltMessage):
+    def __init__(self, parentPID, inputqueue, timeout=5, haltMessage=haltMessage):
         super(KillableWorker, self).__init__()
         self.inputqueue = inputqueue
         self.parentPID = parentPID
@@ -109,7 +109,7 @@ class KillableWorker(multiprocessing.Process):
     def handleItem(self, response):
         """override this for actual workers, for what they're going to
         do with the message that comes in on the queue."""
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def amDone(self):
         """If there's anything special you want to do when the process
@@ -129,16 +129,15 @@ class KillableWorker(multiprocessing.Process):
             self.handleItem(response)
         self.amDone()
 
+
 class WritingWorker(KillableWorker):
     """Worker that opens a file, and writes data to it.
 
     Override the handleItem method to actually get data & write
     to the file. the format of the data on the inputqueue isn't
     known so you have to handle that yourself."""
-    def __init__(self, parentPID, inputqueue, fileName, timeout=5,
-                    haltMessage=haltMessage):
-        super(WritingWorker, self).__init__(parentPID, inputqueue, timeout,
-                                haltMessage)
+    def __init__(self, parentPID, inputqueue, fileName, timeout=5, haltMessage=haltMessage):
+        super(WritingWorker, self).__init__(parentPID, inputqueue, timeout, haltMessage)
         self.fileName = fileName
         self.fileHandle = open(self.fileName, "w")
 
@@ -147,19 +146,27 @@ class WritingWorker(KillableWorker):
         self.fileHandle.close()
         super(WritingWorker, self).amDone()
 
+    def handleItem(self, response):
+        """override this for actual workers, for what they're going to
+        do with the message that comes in on the queue."""
+        raise NotImplementedError()
+
+
 class WorkerThatTalksToWriter(KillableWorker):
     """Simple override of the default KillableWorker that takes an
     output queue also. You will still need to override handleItem to actually
     put things on the output queue."""
-    def __init__(self, parentPID, inputqueue, outputqueue, timeout=5,
-                    haltMessage=haltMessage):
-        super(WorkerThatTalksToWriter, self).__init__(parentPID, inputqueue,
-                                        timeout, haltMessage)
+    def __init__(self, parentPID, inputqueue, outputqueue, timeout=5, haltMessage=haltMessage):
+        super(WorkerThatTalksToWriter, self).__init__(parentPID, inputqueue, timeout, haltMessage)
         self.outputqueue = outputqueue
 
+    def handleItem(self, response):
+        """override this for actual workers, for what they're going to
+        do with the message that comes in on the queue."""
+        raise NotImplementedError()
 
-def startWorkersAndWriter(workerClass, workerKWargs, writerClass, writerKWargs,
-                        numWorkers):
+
+def startWorkersAndWriter(workerClass, workerKWargs, writerClass, writerKWargs, numWorkers):
     parentPID = os.getpid()
     workers = []
     workerInputQueue = CountingQueue()
@@ -179,9 +186,7 @@ def startWorkersAndWriter(workerClass, workerKWargs, writerClass, writerKWargs,
     writer.start()
     return workers, writer, workerInputQueue, workerToWriterQueue
 
-def stopWorkersAndWriter(workers, workerInputQueue, writer,
-                        workerToWriterQueue, numWorkers,
-                        haltMessage=haltMessage):
+def stopWorkersAndWriter(workers, workerInputQueue, writer, workerToWriterQueue, numWorkers, haltMessage=haltMessage):
     for _ in range(numWorkers):
         workerInputQueue.put(haltMessage)
     while workerInputQueue.qsize() > 0:

@@ -43,7 +43,7 @@ class LookupWorker(MT.WorkerThatTalksToWriter):
     def lookupName(self, hostname):
         try:
             if debug:
-                print "looking up %s" % hostname
+                print("looking up %s" % hostname)
             result = self.resolver.query(hostname, "A")
             data = result.response.to_text()
             data = data.replace("\n", " ").replace("\r", " ")
@@ -84,7 +84,7 @@ def testForWildCard(baseDomain):
     # an answer, and 2) the vast majority of them have to return the same IP
     #
     if debug:
-        print "testing for wildcard zone"
+        print("testing for wildcard zone")
     resolver = dns.resolver.Resolver()
     resolver.nameservers = ns
     resolutions = []
@@ -103,17 +103,18 @@ def testForWildCard(baseDomain):
             dns.resolver.NoNameservers, dns.resolver.Timeout):
             response = []
         if response:
-            for answer in response.response.answer:
-                for item in answer.items:
-                    resolutions.append(item.address)
+            if hasattr(response, "response"):
+                for answer in response.response.answer:
+                    for item in answer.items:
+                        resolutions.append(item.address)
     if debug:
-        print "got %s responses out of %s tries" % (numAnswers, numTests)
+        print("got %s responses out of %s tries" % (numAnswers, numTests))
     if numAnswers < 0.95 * numTests:
         return False
     uniqueNames = set(resolutions)
     if debug:
-        print "have %s unique responses" % len(uniqueNames)
-        print uniqueNames
+        print("have %s unique responses" % len(uniqueNames))
+        print(uniqueNames)
     if len(uniqueNames) > 0.05 * numTests:
         return False
     return True
@@ -127,13 +128,13 @@ def readDictionary(workerQueue):
             while workerQueue.qsize() > maxQueueSize:
                 time.sleep(5)
             if debug:
-                print "putting %s on queue for lookup" % line
+                print("putting %s on queue for lookup" % line)
             workerQueue.put(line)
 
 if __name__ == "__main__":
     baseDomain = sys.argv[1]
     if debug:
-        print "starting to look up %s" % baseDomain
+        print("starting to look up %s" % baseDomain)
     workerArgs = {"baseDomain":baseDomain, "nameserver":ns}
     writerArgs = {"fileName":outfileName}
     (workers,
@@ -148,12 +149,12 @@ if __name__ == "__main__":
         workerToWriterQueue.put((baseDomain, "is a wildcard zone"),)
     else:
         if debug:
-            print "opening input file"
+            print("opening input file")
         readDictionary(workerInputQueue)
     if debug:
-        print "done with input file, telling workers to stop"
+        print("done with input file, telling workers to stop")
     MT.stopWorkersAndWriter(workers, workerInputQueue, writer,
                         workerToWriterQueue, numWorkers)
     if debug:
-        print "all done."
+        print("all done.")
 
